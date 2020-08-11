@@ -1,0 +1,197 @@
+
+<html>
+<head>
+    <title>Football scheduler - Dashboard</title>
+    <h2>Football scheduler - Dashboard</h2>
+    <h5>12 Leagues, German Bundesliga, Spanish La Liga, Portugese Primeira Liga, English Premier League, English Championship,
+        Italian Series A, Brazilian Series A, French Ligue 1, Netherlands Eredivisie, UEFA Champions league, EURO 2020
+    </h5>
+    <script src="https://code.jquery.com/jquery-3.5.0.js"
+            integrity="sha256-r/AaFHrszJtwpe+tHyNi/XCfMxYpbsRg2Uqn0x3s2zc="
+            crossorigin="anonymous"></script>
+            <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+            <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+</head>
+<body>
+    <style>
+        table {
+            border-spacing: 2px;
+        }
+        td {
+            padding:2px;
+        }
+
+        #status {
+            border:solid 1px black;
+            color : white;
+            background-color: green;
+        }
+
+    </style>
+    <p id="status" > </p>
+    <button onclick="next10days()" class="btn btn-outline-secondary">Load matches for next 10 days</button>
+    <button onclick="LeagueFixtures('CL')" class="btn btn-outline-secondary">Champions League Fixtures</button>
+    <button onclick="LeagueFixtures('EC')" class="btn btn-outline-secondary">Euro Cup Fixtures</button>
+
+    <br>
+    <br>
+
+    <h2 id="tablecaption">  </h2>
+    <div id ="Main"></div>
+
+
+
+    <script>
+
+        const APIKey = "66ef4a19b1464b55841b025fd0a86308";
+        const cols = ["DateTime","GMT+8", "Countdown","Teams","Stage" ,"Status","Competition"];
+        const APIurl = "https://api.football-data.org/v2/";
+
+        
+
+        //'https://api.football-data.org/v2/matches?dateFrom=2020-01-10&dateTo=2020-01-20'
+
+        $(document).ready(function() {
+            $('#status').html('Welcome to dashboard')
+            //next10days();
+        })
+
+        function getTwoDigitDateFormat(monthOrDate) {
+            return (monthOrDate < 10) ? '0' + monthOrDate : monthOrDate;
+        }
+
+        function next10days() {
+
+            let d = new Date();
+            let d2 = new Date();
+            d2.setDate(d.getDate() + 10) ;
+            
+            d = (d.getFullYear() + "-" + getTwoDigitDateFormat((d.getMonth()+1)) + "-" + getTwoDigitDateFormat(d.getDate()))
+            d2 = (d2.getFullYear() + "-" + getTwoDigitDateFormat((d2.getMonth()+1)) + "-" + getTwoDigitDateFormat(d2.getDate()))
+
+            url = APIurl + "matches?dateFrom=" + d + "&dateTo=" + d2;
+
+            $.ajax({
+                headers: { 'X-Auth-Token': APIKey },
+                url: url,   
+                dataType: 'json',
+                type: 'GET',
+                beforeSend : function(){
+
+                    $('#status').html('Loading next 10 days matches')
+                    $('#status').css("background-color", "yellow");
+                    $('#status').css("color", "black");
+
+                }
+                }).done(function(response) {
+                    $('#status').html('Next 10 days matches loaded')
+                    $('#status').css("background-color", "green");
+                    $('#status').css("color", "white");
+                    console.log(response);
+                    let tableHTML = generateTable(response.matches, cols);
+                    console.log(tableHTML);
+                    $("#Main").html(tableHTML);
+
+                });
+        }
+
+        function generateTable(data, cols, competition="") {
+            
+            let tableHTML = "<table  class='table-striped table-dark table-hover' style='width:100%;v' ><thead><tr>";
+
+            for (let i =0; i<cols.length; i++) {
+                tableHTML += "<th>" + cols[i] + "</th>";
+            }
+            tableHTML += "</tr></thead><tbody>";
+
+            for (let i =0; i<data.length; i++) {
+
+                let resultObject = {
+                    status : "",
+                    competition : "",
+                    area : "",
+                    logo : "",
+                }
+                
+                // if game is finished, just display the final score 
+                if (data[i].status === "FINISHED") {
+                    resultObject.status = data[i].score.fullTime.homeTeam + "-" + data[i].score.fullTime.awayTeam;
+                } else {
+                    resultObject.status = data[i].status;
+                }
+                
+                // check if each individual match have their own competition data, assign competition data
+                if (competition) {
+                    resultObject.competition = competition.name;
+                    resultObject.area = competition.area.name;
+                    resultObject.logo = "";
+                    if (competition.name = "UEFA Champions League") {
+                        resultObject.logo = "https://i.pinimg.com/originals/4c/08/83/4c08831bfd81bc4015980be2fb6ea5c5.png";
+                    }
+                    
+                } else {
+                    resultObject.competition = data[i].competition.area.name;
+                    resultObject.area = data[i].competition.name;
+                    resultObject.logo = data[i].competition.area.ensignUrl;
+                }
+
+                // if current match date not same with the match before, add a new line as new date
+                if (i > 0 && new Date(data[i].utcDate).getDate() !=  new Date(data[i-1].utcDate).getDate()) {
+                    //console.log( new Date(data[i].utcDate).getDate())
+                    tableHTML += "<tr><td> <br><br> </td></tr>";
+                } 
+
+                tableHTML += "<tr><td>" + data[i].utcDate + " </td><td> " + new Date(data[i].utcDate).toLocaleString("en-US", {timeZone: "Asia/Shanghai"}) + 
+                    " </td><td> " + "" + " </td><td> " + data[i].homeTeam.name + " VS " + data[i].awayTeam.name + " </td><td> " + data[i].stage  + " </td><td> "
+                    + resultObject.status + " </td><td> " + resultObject.area + " " +resultObject.competition + " &nbsp&nbsp <img src=" + resultObject.logo + " width=25px height=25px>" + "</td></tr>";
+            }
+
+            tableHTML += "</tbody></table>";
+            return tableHTML
+        }
+
+        function LeagueFixtures(LeaguePrefix) {
+
+            $.ajax({
+                headers: { 'X-Auth-Token': APIKey },
+                url: "https://api.football-data.org/v2/competitions/" + LeaguePrefix + "/matches",   
+                dataType: 'json',
+                type: 'GET',
+                beforeSend : function(){
+
+                    $('#status').html('Loading ' + LeaguePrefix )
+                    $('#status').css("background-color", "yellow");
+                    $('#status').css("color", "black");
+
+                }
+                }).done(function(response) {
+                    $('#status').html( LeaguePrefix + ' fixtures loaded')
+                    $('#status').css("background-color", "green");
+                    $('#status').css("color", "white");
+                    
+                    /*
+                    for (let i =0; i<response.matches.length; i++) {
+                        response.matches[i].competition = {
+                            area : {
+                                    name : "Europe",
+                                    ensignUrl : "https://upload.wikimedia.org/wikipedia/commons/b/ba/Flag_of_Germany.svg"
+                                    },
+                            name : "Champions League"
+                        };
+                    }
+                    */
+                    console.log(response);
+
+                    let tableHTML = generateTable(response.matches, cols, response.competition);
+                    //console.log(tableHTML);
+                    $("#Main").html(tableHTML);
+
+                });
+
+
+        }
+
+    </script>
+
+</body>
+</html>
